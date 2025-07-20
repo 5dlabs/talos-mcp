@@ -42,4 +42,4 @@ stdout.txt
 
 # Test artifacts
 coverage/
-*.profraw
+*.profraw/releases/
