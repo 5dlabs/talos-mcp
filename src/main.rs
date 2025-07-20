@@ -58,6 +58,22 @@ fn run_talosctl(args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+// Helper to run talosctl command and capture stderr output (for health checks).
+fn run_talosctl_with_stderr(args: &[&str]) -> Result<String> {
+    let talosconfig = env::var("TALOSCONFIG").context("TALOSCONFIG env var not set")?;
+    let mut cmd = Command::new("talosctl");
+    cmd.arg("--talosconfig").arg(&talosconfig);
+    cmd.args(args);
+    cmd.stderr(Stdio::piped());
+    let output = cmd.output().context("Failed to execute talosctl")?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(anyhow!("talosctl failed: {}", err));
+    }
+    // For health checks, the useful output is in stderr, not stdout
+    Ok(String::from_utf8_lossy(&output.stderr).to_string())
+}
+
 // Capabilities advertised by the server with full MCP tool schemas.
 fn get_capabilities() -> Value {
     tools::get_all_tool_schemas()
@@ -75,10 +91,15 @@ fn handle_system_inspection_methods(method: &str, params_map: &HashMap<String, V
     match method {
         "containers" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
+            let kubernetes = params_map.get("kubernetes").and_then(|v| v.as_bool()).unwrap_or(false);
             match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "containers"]);
-                    Some(output.map(|out| json!({"containers": out})))
+                    let mut args = vec!["--nodes", node, "containers"];
+                    if kubernetes {
+                        args.push("--kubernetes");
+                    }
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({"containers": out, "namespace": if kubernetes { "k8s.io" } else { "system" }})))
                 }
                 Err(e) => Some(Err(e))
             }
@@ -454,15 +475,83 @@ fn handle_core_cluster_methods(method: &str, params_map: &HashMap<String, Value>
             }
         }
         "get_health" => {
-            let control_planes = params_map.get("control_planes").and_then(|v| v.as_array()).map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()).unwrap_or(vec!["192.168.1.77"]);
+            let control_planes = params_map.get("control_planes")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                .unwrap_or(vec!["192.168.1.77"]);
+
+            let worker_nodes = params_map.get("worker_nodes")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>());
+
+            let init_node = params_map.get("init_node").and_then(|v| v.as_str());
             let timeout = params_map.get("timeout").and_then(|v| v.as_str()).unwrap_or("120s");
+            let run_e2e = params_map.get("run_e2e").and_then(|v| v.as_bool()).unwrap_or(false);
+            let k8s_endpoint = params_map.get("k8s_endpoint").and_then(|v| v.as_str());
+            let server = params_map.get("server").and_then(|v| v.as_bool()).unwrap_or(true);
+
             if control_planes.is_empty() {
                 return Some(Err(anyhow!("At least one control plane node must be specified")));
             }
-            let nodes_str = control_planes.join(",");
-            let output = run_talosctl(&["--nodes", &nodes_str, "health", "--control-plane-nodes", &nodes_str, "--wait-timeout", timeout]);
+
+            // Prepare string values that need to live for the entire function
+            let control_planes_str = control_planes.join(",");
+            let workers_str = worker_nodes.as_ref().map(|w| w.join(","));
+
+            // Build command arguments dynamically
+            let mut args = Vec::new();
+
+            // Always specify the first control plane node for --nodes
+            args.extend(&["--nodes", control_planes[0]]);
+
+            // Add the health command
+            args.push("health");
+
+            // Add control plane nodes
+            args.extend(&["--control-plane-nodes", &control_planes_str]);
+
+            // Add worker nodes if specified
+            if let Some(ref workers_string) = workers_str {
+                args.extend(&["--worker-nodes", workers_string]);
+            }
+
+            // Add init node if specified
+            if let Some(init) = init_node {
+                args.extend(&["--init-node", init]);
+            }
+
+            // Add timeout
+            args.extend(&["--wait-timeout", timeout]);
+
+            // Add run-e2e flag if true
+            if run_e2e {
+                args.push("--run-e2e");
+            }
+
+            // Add k8s endpoint if specified
+            if let Some(endpoint) = k8s_endpoint {
+                args.extend(&["--k8s-endpoint", endpoint]);
+            }
+
+            // Add server flag (note: --server is default true, --no-server to disable)
+            if !server {
+                args.push("--server=false");
+            }
+
+            let output = run_talosctl_with_stderr(&args);
             match output {
-                Ok(out) => Some(Ok(json!({"health": out}))),
+                Ok(out) => Some(Ok(json!({
+                    "health": out,
+                    "cluster_info": {
+                        "control_planes": control_planes,
+                        "worker_nodes": worker_nodes,
+                        "init_node": init_node,
+                        "timeout": timeout,
+                        "run_e2e": run_e2e,
+                        "k8s_endpoint": k8s_endpoint,
+                        "server_side": server
+                    }
+                }))),
                 Err(e) => Some(Err(anyhow!("Health check failed: {}", e))),
             }
         }

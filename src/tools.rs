@@ -73,6 +73,11 @@ fn get_containers_schema() -> Value {
                 "node": {
                     "type": "string",
                     "description": "IP address or hostname of the Talos node to query"
+                },
+                "kubernetes": {
+                    "type": "boolean",
+                    "description": "Use the k8s.io containerd namespace to list Kubernetes containers (defaults to false)",
+                    "default": false
                 }
             },
             "required": ["node"]
@@ -318,10 +323,33 @@ fn get_health_schema() -> Value {
                     "items": {"type": "string"},
                     "default": ["192.168.1.77"]
                 },
+                "worker_nodes": {
+                    "type": "array",
+                    "description": "Array of IP addresses or hostnames of worker nodes",
+                    "items": {"type": "string"}
+                },
+                "init_node": {
+                    "type": "string",
+                    "description": "IP address or hostname of the init node"
+                },
                 "timeout": {
                     "type": "string",
                     "description": "Timeout duration for health check (defaults to 120s)",
                     "default": "120s"
+                },
+                "run_e2e": {
+                    "type": "boolean",
+                    "description": "Run Kubernetes e2e test (defaults to false)",
+                    "default": false
+                },
+                "k8s_endpoint": {
+                    "type": "string",
+                    "description": "Use endpoint instead of kubeconfig default"
+                },
+                "server": {
+                    "type": "boolean",
+                    "description": "Run server-side check (defaults to true)",
+                    "default": true
                 }
             }
         }
