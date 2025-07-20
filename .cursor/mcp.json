@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+      "talos-mcp": {
+        "command": "/Users/jonathonfritz/talos-mcp/target/release/talos-mcp-server",
+        "env": {
+          "TALOSCONFIG": "/Users/jonathonfritz/.talos/config"
+        }
+      }
+    }
+  }

@@ -1,0 +1,51 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+
+# Development files
+*.md
+LICENSE
+CLAUDE.md
+cli.md
+grok.md
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Documentation
+docs/
+
+# Test files
+tests/
+
+# MCP documentation submodule (it's large)
+modelcontextprotocol/
+
+# Keep only the binary we need
+!talos-mcp-server-linux
