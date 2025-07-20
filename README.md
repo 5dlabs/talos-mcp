@@ -78,14 +78,44 @@ A **Model Context Protocol (MCP) server** that provides comprehensive access to 
 
 ## 🔧 Installation & Setup
 
+### **Quick Install (Recommended)**
+
+**One-line installer:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/5dlabs/talos-mcp/main/install.sh | bash
+```
+
+**Or download and run:**
+```bash
+wget https://raw.githubusercontent.com/5dlabs/talos-mcp/main/install.sh
+chmod +x install.sh
+./install.sh
+```
+
+**Installation options:**
+```bash
+./install.sh --help                     # Show all options
+./install.sh --version v1.0.0           # Install specific version
+./install.sh --dir /usr/local/bin       # Custom install directory
+./install.sh --no-config               # Skip Cursor configuration
+```
+
 ### **Prerequisites**
-- Rust (latest stable)
 - `talosctl` CLI tool installed and configured
 - `TALOSCONFIG` environment variable set
+- Talos OS cluster access
 
-### **Build**
+### **Manual Build (Development)**
 ```bash
+# Clone repository
+git clone https://github.com/5dlabs/talos-mcp.git
+cd talos-mcp
+
+# Build from source
 cargo build --release
+
+# Binary location
+./target/release/talos-mcp-server
 ```
 
 ### **Configuration**
@@ -94,10 +124,22 @@ Ensure your `TALOSCONFIG` environment variable points to your Talos configuratio
 export TALOSCONFIG=/path/to/your/talosconfig
 ```
 
-### **Running**
-The server communicates over stdio using the MCP protocol:
+For persistence, add to your shell profile:
 ```bash
-./target/release/talos-mcp-server
+echo 'export TALOSCONFIG=/path/to/your/talosconfig' >> ~/.zshrc  # or ~/.bashrc
+```
+
+### **MCP Integration**
+The installer automatically configures Cursor. Manual configuration:
+```json
+{
+  "mcpServers": {
+    "talos-mcp": {
+      "command": "/path/to/talos-mcp-server",
+      "args": []
+    }
+  }
+}
 ```
 
 ## 📖 Usage Examples
