@@ -106,10 +106,15 @@ fn handle_system_inspection_methods(method: &str, params_map: &HashMap<String, V
         }
         "stats" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
+            let kubernetes = params_map.get("kubernetes").and_then(|v| v.as_bool()).unwrap_or(false);
             match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "stats"]);
-                    Some(output.map(|out| json!({"stats": out})))
+                    let mut args = vec!["--nodes", node, "stats"];
+                    if kubernetes {
+                        args.push("--kubernetes");
+                    }
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({"stats": out, "namespace": if kubernetes { "k8s.io" } else { "system" }})))
                 }
                 Err(e) => Some(Err(e))
             }
@@ -140,10 +145,12 @@ fn handle_system_inspection_methods(method: &str, params_map: &HashMap<String, V
         }
         "get_processes" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
+            let sort = params_map.get("sort").and_then(|v| v.as_str()).unwrap_or("rss");
             match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "processes"]);
-                    Some(output.map(|out| json!({"processes": out})))
+                    let args = vec!["--nodes", node, "processes", "--sort", sort];
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({"processes": out, "sort_by": sort})))
                 }
                 Err(e) => Some(Err(e))
             }
@@ -155,13 +162,52 @@ fn handle_system_inspection_methods(method: &str, params_map: &HashMap<String, V
 // Handle file system operations
 fn handle_file_operations_methods(method: &str, params_map: &HashMap<String, Value>) -> Option<Result<Value>> {
     match method {
-        "list" => {
+                "list" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
             let path = params_map.get("path").and_then(|v| v.as_str()).unwrap_or("/");
-            match node {
+            let long = params_map.get("long").and_then(|v| v.as_bool()).unwrap_or(false);
+            let humanize = params_map.get("humanize").and_then(|v| v.as_bool()).unwrap_or(false);
+            let recurse = params_map.get("recurse").and_then(|v| v.as_bool()).unwrap_or(false);
+            let depth = params_map.get("depth").and_then(|v| v.as_i64()).unwrap_or(1);
+            let file_types = params_map.get("type").and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>());
+
+                        match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "list", path]);
-                    Some(output.map(|out| json!({"list": out})))
+                    let mut args = vec!["--nodes", node, "list", path];
+                    let depth_str = depth.to_string();
+
+                    if long {
+                        args.push("--long");
+                    }
+
+                    if humanize {
+                        args.push("--humanize");
+                    }
+
+                    // --recurse and --depth are mutually exclusive
+                    if recurse {
+                        args.push("--recurse");
+                    } else if depth != 1 {
+                        args.extend(&["--depth", &depth_str]);
+                    }
+
+                    if let Some(types) = &file_types {
+                        for file_type in types {
+                            args.extend(&["--type", file_type]);
+                        }
+                    }
+
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({
+                        "list": out,
+                        "path": path,
+                        "long": long,
+                        "humanize": humanize,
+                        "recurse": recurse,
+                        "depth": depth,
+                        "types": file_types
+                    })))
                 }
                 Err(e) => Some(Err(e))
             }
@@ -219,20 +265,50 @@ fn handle_network_operations_methods(method: &str, params_map: &HashMap<String, 
     match method {
         "interfaces" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
+            let namespace = params_map.get("namespace").and_then(|v| v.as_str());
+            let output_format = params_map.get("output").and_then(|v| v.as_str()).unwrap_or("table");
+
             match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "get", "addresses"]);
-                    Some(output.map(|out| json!({"interfaces": out})))
+                    let mut args = vec!["--nodes", node, "get", "addresses"];
+
+                    if let Some(ns) = namespace {
+                        args.extend(&["--namespace", ns]);
+                    }
+
+                    args.extend(&["--output", output_format]);
+
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({
+                        "interfaces": out,
+                        "namespace": namespace,
+                        "output_format": output_format
+                    })))
                 }
                 Err(e) => Some(Err(e))
             }
         }
         "routes" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
+            let namespace = params_map.get("namespace").and_then(|v| v.as_str());
+            let output_format = params_map.get("output").and_then(|v| v.as_str()).unwrap_or("table");
+
             match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "get", "routes"]);
-                    Some(output.map(|out| json!({"routes": out})))
+                    let mut args = vec!["--nodes", node, "get", "routes"];
+
+                    if let Some(ns) = namespace {
+                        args.extend(&["--namespace", ns]);
+                    }
+
+                    args.extend(&["--output", output_format]);
+
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({
+                        "routes": out,
+                        "namespace": namespace,
+                        "output_format": output_format
+                    })))
                 }
                 Err(e) => Some(Err(e))
             }
@@ -290,8 +366,11 @@ fn handle_service_log_methods(method: &str, params_map: &HashMap<String, Value>)
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
             match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "dmesg"]);
-                    Some(output.map(|out| json!({"dmesg": out})))
+                    let args = vec!["--nodes", node, "dmesg"];
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({
+                        "dmesg": out
+                    })))
                 }
                 Err(e) => Some(Err(e))
             }
@@ -338,10 +417,25 @@ fn handle_storage_hardware_methods(method: &str, params_map: &HashMap<String, Va
     match method {
         "disks" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
+            let namespace = params_map.get("namespace").and_then(|v| v.as_str());
+            let output_format = params_map.get("output").and_then(|v| v.as_str()).unwrap_or("table");
+
             match node {
                 Ok(node) => {
-                    let output = run_talosctl(&["--nodes", node, "get", "disks"]);
-                    Some(output.map(|out| json!({"disks": out})))
+                    let mut args = vec!["--nodes", node, "get", "disks"];
+
+                    if let Some(ns) = namespace {
+                        args.extend(&["--namespace", ns]);
+                    }
+
+                    args.extend(&["--output", output_format]);
+
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({
+                        "disks": out,
+                        "namespace": namespace,
+                        "output_format": output_format
+                    })))
                 }
                 Err(e) => Some(Err(e))
             }
@@ -462,17 +556,43 @@ fn handle_core_cluster_methods(method: &str, params_map: &HashMap<String, Value>
     match method {
         "tools/call" => Some(handle_tool_invocation(params_map)),
         "get_version" => {
-            let output = run_talosctl(&["version", "--client"]);
-            Some(output.map(|out| json!({"version": out})))
-        }
-        "get_time" => {
-            if let Some(node) = params_map.get("node").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
-                let output = run_talosctl(&["--nodes", node, "time"]);
-                Some(output.map(|out| json!({"time": out})))
-            } else {
-                let output = run_talosctl(&["time"]);
-                Some(output.map(|out| json!({"time": out})))
+            let short = params_map.get("short").and_then(|v| v.as_bool()).unwrap_or(false);
+
+            let mut args = vec!["version", "--client"];
+            if short {
+                args.push("--short");
             }
+
+            let output = run_talosctl(&args);
+            Some(output.map(|out| json!({
+                "version": out,
+                "short_format": short
+            })))
+        }
+                "get_time" => {
+            let node = params_map.get("node").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+            let check = params_map.get("check").and_then(|v| v.as_str());
+
+            // Time command requires a node to be specified
+            let target_node = match node {
+                Some(n) => n,
+                None => {
+                    return Some(Err(anyhow!("Time command requires a node to be specified. Please provide a node parameter.")));
+                }
+            };
+
+            let mut args = vec!["--nodes", target_node, "time"];
+
+            if let Some(ntp_server) = check {
+                args.extend(&["--check", ntp_server]);
+            }
+
+            let output = run_talosctl(&args);
+            Some(output.map(|out| json!({
+                "time": out,
+                "node": target_node,
+                "ntp_check": check
+            })))
         }
         "get_health" => {
             let control_planes = params_map.get("control_planes")
@@ -558,10 +678,28 @@ fn handle_core_cluster_methods(method: &str, params_map: &HashMap<String, Value>
         "get_logs" => {
             let node = params_map.get("node").and_then(|v| v.as_str()).ok_or(anyhow!("Missing node param"));
             let service = params_map.get("service").and_then(|v| v.as_str()).ok_or(anyhow!("Missing service param"));
+            let tail = params_map.get("tail").and_then(|v| v.as_i64());
+            let kubernetes = params_map.get("kubernetes").and_then(|v| v.as_bool()).unwrap_or(false);
             match (node, service) {
                 (Ok(node), Ok(service)) => {
-                    let output = run_talosctl(&["--nodes", node, "logs", service]);
-                    Some(output.map(|out| json!({"logs": out})))
+                    let mut args = vec!["--nodes", node, "logs", service];
+
+                    let tail_str = tail.map(|t| t.to_string());
+                    if let Some(ref tail_count) = tail_str {
+                        args.extend(&["--tail", tail_count]);
+                    }
+
+                    if kubernetes {
+                        args.push("--kubernetes");
+                    }
+
+                    let output = run_talosctl(&args);
+                    Some(output.map(|out| json!({
+                        "logs": out,
+                        "service": service,
+                        "tail_lines": tail,
+                        "namespace": if kubernetes { "k8s.io" } else { "system" }
+                    })))
                 }
                 (Err(e), _) | (_, Err(e)) => Some(Err(e))
             }

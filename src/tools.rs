@@ -95,6 +95,11 @@ fn get_stats_schema() -> Value {
                 "node": {
                     "type": "string",
                     "description": "IP address or hostname of the Talos node to query"
+                },
+                "kubernetes": {
+                    "type": "boolean",
+                    "description": "Use the k8s.io containerd namespace to get Kubernetes containers stats (defaults to false)",
+                    "default": false
                 }
             },
             "required": ["node"]
@@ -134,6 +139,35 @@ fn get_list_schema() -> Value {
                     "type": "string",
                     "description": "Directory path to list (defaults to root /)",
                     "default": "/"
+                },
+                "long": {
+                    "type": "boolean",
+                    "description": "Display additional file details",
+                    "default": false
+                },
+                "humanize": {
+                    "type": "boolean",
+                    "description": "Humanize size and time in the output",
+                    "default": false
+                },
+                "recurse": {
+                    "type": "boolean",
+                    "description": "Recurse into subdirectories",
+                    "default": false
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "Maximum recursion depth (defaults to 1)",
+                    "minimum": 1,
+                    "default": 1
+                },
+                "type": {
+                    "type": "array",
+                    "description": "Filter by specified file types",
+                    "items": {
+                        "type": "string",
+                        "enum": ["f", "d", "l", "L"]
+                    }
                 }
             },
             "required": ["node"]
@@ -172,6 +206,16 @@ fn get_interfaces_schema() -> Value {
                 "node": {
                     "type": "string",
                     "description": "IP address or hostname of the Talos node to query"
+                },
+                "namespace": {
+                    "type": "string",
+                    "description": "Resource namespace (default is to use default namespace per resource)"
+                },
+                "output": {
+                    "type": "string",
+                    "description": "Output mode (default: table)",
+                    "enum": ["json", "table", "yaml", "jsonpath"],
+                    "default": "table"
                 }
             },
             "required": ["node"]
@@ -189,6 +233,16 @@ fn get_routes_schema() -> Value {
                 "node": {
                     "type": "string",
                     "description": "IP address or hostname of the Talos node to query"
+                },
+                "namespace": {
+                    "type": "string",
+                    "description": "Resource namespace (default is to use default namespace per resource)"
+                },
+                "output": {
+                    "type": "string",
+                    "description": "Output mode (default: table)",
+                    "enum": ["json", "table", "yaml", "jsonpath"],
+                    "default": "table"
                 }
             },
             "required": ["node"]
@@ -299,6 +353,16 @@ fn get_disks_schema() -> Value {
                 "node": {
                     "type": "string",
                     "description": "IP address or hostname of the Talos node to query"
+                },
+                "namespace": {
+                    "type": "string",
+                    "description": "Resource namespace (default is to use default namespace per resource)"
+                },
+                "output": {
+                    "type": "string",
+                    "description": "Output mode (default: table)",
+                    "enum": ["json", "table", "yaml", "jsonpath"],
+                    "default": "table"
                 }
             },
             "required": ["node"]
@@ -362,7 +426,13 @@ fn get_version_schema() -> Value {
         "description": "Get Talos client version information",
         "inputSchema": {
             "type": "object",
-            "properties": {}
+            "properties": {
+                "short": {
+                    "type": "boolean",
+                    "description": "Print the short version (defaults to false)",
+                    "default": false
+                }
+            }
         }
     })
 }
@@ -377,6 +447,12 @@ fn get_processes_schema() -> Value {
                 "node": {
                     "type": "string",
                     "description": "IP address or hostname of the Talos node to query"
+                },
+                "sort": {
+                    "type": "string",
+                    "description": "Column to sort output by (defaults to 'rss')",
+                    "enum": ["rss", "cpu"],
+                    "default": "rss"
                 }
             },
             "required": ["node"]
@@ -398,6 +474,16 @@ fn get_logs_schema() -> Value {
                 "service": {
                     "type": "string",
                     "description": "Name of the service to get logs for (e.g., kubelet, etcd)"
+                },
+                "tail": {
+                    "type": "integer",
+                    "description": "Number of lines to show from the end of the logs (e.g., 100)",
+                    "minimum": 1
+                },
+                "kubernetes": {
+                    "type": "boolean",
+                    "description": "Use the k8s.io containerd namespace to access Kubernetes containers (defaults to false)",
+                    "default": false
                 }
             },
             "required": ["node", "service"]
@@ -447,15 +533,20 @@ fn get_mounts_schema() -> Value {
 fn get_time_schema() -> Value {
     json!({
         "name": "get_time",
-        "description": "Get current time from a Talos node or cluster",
+        "description": "Get current time from a Talos node",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "node": {
                     "type": "string",
-                    "description": "IP address or hostname of the Talos node to query (optional)"
+                    "description": "IP address or hostname of the Talos node to query"
+                },
+                "check": {
+                    "type": "string",
+                    "description": "Check server time against specified NTP server (e.g., 'pool.ntp.org')"
                 }
-            }
+            },
+            "required": ["node"]
         }
     })
 }
