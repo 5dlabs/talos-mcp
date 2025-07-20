@@ -78,26 +78,29 @@ A **Model Context Protocol (MCP) server** that provides comprehensive access to 
 
 ## 🔧 Installation & Setup
 
-### **Quick Install (Recommended)**
+### **Installation**
 
-**One-line installer:**
+**Install with one command:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/5dlabs/talos-mcp/main/install.sh | bash
 ```
 
-**Or download and run:**
-```bash
-wget https://raw.githubusercontent.com/5dlabs/talos-mcp/main/install.sh
-chmod +x install.sh
-./install.sh
-```
+The installer will automatically:
+- ✅ Detect your platform (macOS, Linux, Windows)
+- ✅ Download the latest release
+- ✅ Configure Cursor MCP integration
+- ✅ Add to your PATH
 
-**Installation options:**
+**Advanced options:**
 ```bash
-./install.sh --help                     # Show all options
-./install.sh --version v1.0.0           # Install specific version
-./install.sh --dir /usr/local/bin       # Custom install directory
-./install.sh --no-config               # Skip Cursor configuration
+# Install specific version
+curl -fsSL https://raw.githubusercontent.com/5dlabs/talos-mcp/main/install.sh | bash -s -- --version v1.0.1
+
+# Custom install directory
+curl -fsSL https://raw.githubusercontent.com/5dlabs/talos-mcp/main/install.sh | bash -s -- --dir /usr/local/bin
+
+# See all options
+curl -fsSL https://raw.githubusercontent.com/5dlabs/talos-mcp/main/install.sh | bash -s -- --help
 ```
 
 ### **Prerequisites**
