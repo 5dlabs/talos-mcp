@@ -95,7 +95,8 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -v|--version)
-            VERSION="$2"
+            # Strip leading 'v' if present to avoid double 'v' in tag
+            VERSION="${2#v}"
             shift 2
             ;;
         -d|--dir)
@@ -153,7 +154,7 @@ detect_platform() {
             ;;
         aarch64|arm64)
             if [[ "$os" == "macos" ]]; then
-                arch="aarch64"
+                arch="aarch64"  # Native Apple Silicon support
             else
                 arch="x86_64"  # Fallback to x86_64 for ARM Linux
                 print_warning "ARM64 Linux detected, using x86_64 binary"
